@@ -39,8 +39,8 @@ Comitup can remember multiple upstream connections, and will search among them
 in the connection attempt, making it easier to move your device to different
 locations.
 
-If two wifi interfaces are available, the first will persistently remain
-the hotspot, and the second will get the external connection. When both
+If two wifi interfaces are available, the first can persistently remain
+the hotspot, and the second can manage the external connection. When both
 are connected, forwarding and masquerading are enabled so that
 hotspot-connected devices can access external networks.
 
@@ -61,7 +61,7 @@ See the [Home Page](https://davesteele.github.io/comitup/) for installation info
 Man pages
 ---------
 
-* [comitup.8](https://davesteele.github.io/comitup/man/comitup.8.html)
-* [comitup-conf.5](https://davesteele.github.io/comitup/man/comitup-conf.5.html)
-* [comitup-web.8](https://davesteele.github.io/comitup/man/comitup-web.8.html)
-* [comitup-cli.8](https://davesteele.github.io/comitup/man/comitup-cli.8.html)
+* [comitup.8](https://davesteele.github.io/comitup/man/comitup.pdf)
+* [comitup-conf.5](https://davesteele.github.io/comitup/man/comitup-conf.pdf)
+* [comitup-web.8](https://davesteele.github.io/comitup/man/comitup-web.pdf)
+* [comitup-cli.1](https://davesteele.github.io/comitup/man/comitup-cli.pdf)

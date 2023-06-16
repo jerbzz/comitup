@@ -19,7 +19,6 @@ from comitup.blink import blink, can_blink  # noqa
 
 
 class CiuClient(object):
-
     # Make the dbus functions late binding, to facilitate testing.
 
     # These are the methods supported, with the corresponding dbus
@@ -30,6 +29,7 @@ class CiuClient(object):
         "ciu_points": "access_points",
         "ciu_connect": "connect",
         "ciu_delete": "delete_connection",
+        "ciu_nuke": "nuke",
     }
 
     def __init__(self):

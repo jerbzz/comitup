@@ -1,6 +1,11 @@
 name: Comitup Nox Tests
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+      - test
+  pull_request:
 
 jobs:
   noxtest:
@@ -8,14 +13,16 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.6", "3.7", "3.8", "3.9"]
+        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12.0-alpha - 3.12.0"]
     steps:
     - name: Check out
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
+    - name: Update apt registry
+      run: sudo apt-get update
     - name: Install deb packages
       run: >
         sudo apt-get install

@@ -1,6 +1,6 @@
 % comitup(8)
 %
-% March 20212
+% July 2021
 
 # NAME
 
@@ -41,7 +41,8 @@ The web service address is _http://10.41.0.1_.
 ## Options
   * _-h_, _--help_ - Print help and exit
   * _-c_, _--check_ - Check the wifi device configuration and exit
-  * _-i_, _--info - Print info about the current configuration, and exit
+  * _-i_, _--info_ - Print info about the current configuration, and exit
+  * _-v_, _--verbose_ - Increase logging to _/var/log/comitup.log_
 
 ## D-Bus Interface
 
@@ -113,10 +114,20 @@ following methods.
     Delete the connection for _ssid_. The system will not be able to reconnect
     using this connection.
 
+  * _nuke()_
+
+    Input: None
+
+    Output: None
+
+    Perform a factory reset of Comitup information on the device, which
+    consists of removing all WiFi connections, and restarting the service. Note
+    that _enable\_nuke_ must be enabled in comitup.conf for this to succeed.
+
 ## COPYRIGHT
 
 Comitup is Copyright (C) 2016-2019 David Steele &lt;steele@debian.org&gt;.
 
 ## SEE ALSO
 
-comitup-conf(5), comitup-cli(1), comitup-web(8)
+comitup-conf(5), comitup-cli(1), comitup-web(8), comitup-watch(1)

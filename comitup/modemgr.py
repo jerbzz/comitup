@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Copyright (c) 2017-2019 David Steele <dsteele@gmail.com>
+# Copyright (c) 2017-2021 David Steele <dsteele@gmail.com>
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 # License-Filename: LICENSE
@@ -11,46 +11,39 @@
 # or later
 #
 
+from typing import TYPE_CHECKING, Optional
+
 from comitup import config, nm
 
-SINGLE_MODE = "single"
-MULTI_MODE = "router"
+if TYPE_CHECKING:
+    import NetworkManager
 
-CONF_PATH = "/etc/comitup.conf"
+SINGLE_MODE: str = "single"
+MULTI_MODE: str = "router"
 
-conf = None
+CONF_PATH: str = "/etc/comitup.conf"
 
-ap_device = None
-link_device = None
+ap_device: Optional["NetworkManager.Device"] = None
+link_device: Optional["NetworkManager.Device"] = None
 
 
-def get_conf():
-    global conf
-
-    if not conf:
-        conf = config.Config(
-                CONF_PATH,
-                defaults={
-                    'enable_appliance_mode': 'true',
-                    'primary_wifi_device': '',
-                    }
-                )
-
+def get_conf() -> config.Config:
+    (conf, _) = config.load_data()
     return conf
 
 
-def dual_enabled():
-    return get_conf().enable_appliance_mode == 'true'
+def dual_enabled() -> bool:
+    return get_conf().getboolean("enable_appliance_mode")
 
 
-def get_mode():
+def get_mode() -> str:
     if len(nm.get_wifi_devices()) > 1 and dual_enabled():
         return MULTI_MODE
     else:
         return SINGLE_MODE
 
 
-def get_ap_device():
+def get_ap_device() -> "NetworkManager.Device":
     global ap_device
 
     if not ap_device:
@@ -65,10 +58,13 @@ def get_ap_device():
     if not ap_device:
         ap_device = devs[0]
 
-    return ap_device
+    if ap_device:
+        return ap_device
+    else:
+        raise
 
 
-def get_link_device():
+def get_link_device() -> "NetworkManager.Device":
     global link_device
 
     if not link_device:
@@ -84,8 +80,8 @@ def get_link_device():
     return link_device
 
 
-def get_state_device(state):
-    if state == 'HOTSPOT':
+def get_state_device(state: str) -> "NetworkManager.Device":
+    if state == "HOTSPOT":
         return get_ap_device()
     else:
         return get_link_device()

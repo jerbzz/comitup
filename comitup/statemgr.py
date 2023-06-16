@@ -17,17 +17,21 @@ import re
 import socket
 import subprocess
 import sys
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
 import dbus
 import dbus.service
 
-from comitup import iwscan
+from comitup import iwscan, nuke
+
+if TYPE_CHECKING:
+    from comitup.config import Config
+    from comitup.persist import persist
 
 sys.path.append("/usr/share/comitup")
 
 import time  # noqa
 
-import pkg_resources  # noqa
 from dbus.mainloop.glib import DBusGMainLoop  # noqa
 from gi.repository.GLib import MainLoop, timeout_add  # noqa
 
@@ -36,21 +40,21 @@ DBusGMainLoop(set_as_default=True)
 from comitup import modemgr  # noqa
 from comitup import nm  # noqa
 from comitup import states  # noqa
-from comitup.config import REGEX_APNAME_ID  # noqa
+from comitup.__version__ import __version__  # noqa
 
-comitup_path = "/com/github/davesteele/comitup"
+comitup_path: str = "/com/github/davesteele/comitup"
 
-comitup_int = "com.github.davesteele.comitup"
+comitup_int: str = "com.github.davesteele.comitup"
 
-log = logging.getLogger('comitup')
+log: logging.Logger = logging.getLogger("comitup")
 
 
-com_obj = None
-conf = None
-data = None
+com_obj: Optional["Comitup"] = None
+conf: Optional["Config"] = None
+data: Optional["persist"] = None
 
-apcache = None
-cachetime = 0
+apcache: List[Dict[str, str]] = []
+cachetime: float = 0
 
 
 class Comitup(dbus.service.Object):
@@ -59,18 +63,18 @@ class Comitup(dbus.service.Object):
         dbus.service.Object.__init__(self, bus_name, comitup_path)
 
     @dbus.service.method(comitup_int, in_signature="", out_signature="aa{ss}")
-    def access_points(self):
+    def access_points(self) -> List[Dict[str, str]]:
         global apcache, cachetime
 
         if time.time() - cachetime > 5:
-            cachetime = time.time()   # keep anyone else from processing
+            cachetime = time.time()  # keep anyone else from processing
             aps = iwscan.candidates()
-            aps = [x for x in aps if x['ssid'] != states.hotspot_name]
+            aps = [x for x in aps if x["ssid"] != states.hotspot_name]
             apcache = aps
 
             # set a timeout, if we got something
             if len(apcache):
-                cachetime = time.time()   # cache time actually starts now
+                cachetime = time.time()  # cache time actually starts now
             else:
                 cachetime = 0
 
@@ -81,78 +85,80 @@ class Comitup(dbus.service.Object):
         return [states.com_state, states.connection]
 
     @dbus.service.method(comitup_int, in_signature="ss", out_signature="")
-    def connect(self, ssid, password):
+    def connect(self, ssid: str, password: str) -> None:
         def to_fn(ssid, password):
             if nm.get_connection_by_ssid(ssid):
                 nm.del_connection_by_ssid(ssid)
 
-            nm.make_connection_for(ssid, password)
+            nm.make_connection_for(
+                ssid, password, link_local=conf.getboolean("ipv6_link_local")
+            )
 
-            states.set_state('CONNECTING', [ssid, ssid])
+            states.set_state("CONNECTING", [ssid, ssid])
             return False
 
         timeout_add(1, to_fn, ssid, password)
 
     @dbus.service.method(comitup_int, in_signature="", out_signature="")
-    def delete_connection(self):
+    def delete_connection(self) -> None:
         def to_fn():
             ssid = nm.get_active_ssid(modemgr.get_link_device())
             nm.del_connection_by_ssid(ssid)
-            states.set_state('HOTSPOT')
+            states.set_state("HOTSPOT")
             return False
 
         timeout_add(1, to_fn)
 
     @dbus.service.method(comitup_int, in_signature="", out_signature="a{ss}")
-    def get_info(self):
+    def get_info(self) -> Dict[str, str]:
+        if not conf or not data:
+            sys.exit(1)
         return get_info(conf, data)
 
+    @dbus.service.method(comitup_int, in_signature="", out_signature="")
+    def nuke(self) -> None:
+        def do_nuke():
+            nuke.nuke()
 
-def get_info(conf, data):
+        timeout_add(10, do_nuke)
+
+
+def get_info(conf: "Config", data: "persist") -> Dict[str, str]:
+    if not conf or not data:
+        sys.exit(1)
+
     info = {
-        'version': pkg_resources.get_distribution("comitup").version,
-        'apname': expand_ap(conf.ap_name, data),
-        'hostnames': ';'.join(get_hosts(conf, data)),
-        'imode': modemgr.get_mode(),
-        }
+        "version": __version__,
+        "apname": expand_ap(conf.ap_name, data.id),
+        "hostnames": ";".join(get_hosts(conf, data)),
+        "imode": modemgr.get_mode(),
+    }
 
     return info
 
 
-def expand_ap(ap_name, data):
+def expand_ap(ap_name: str, id: str) -> str:
     returnval = ap_name
 
-    expand_spec_srch = re.search(REGEX_APNAME_ID, ap_name)
-    if expand_spec_srch is not None:
-        # There is a'<###>' section in the ap_name, substitute it
-        expand_spec = expand_spec_srch.group()
-        num = len(expand_spec) - 2  # -2 remove <> contribution
-
-        if expand_spec.startswith("<s"):
-            id = data.sn[-num:]
-        elif expand_spec.startswith("<M"):
-            id = data.mac[-num:]
-        else:  # default case <nn...>, based on regex search
-            id = data.id[:num]
-
-        returnval = re.sub(REGEX_APNAME_ID, id, ap_name)
+    for num in range(5):
+        returnval = re.sub("<{}>".format("n" * num), id[:num], returnval)
 
     returnval = re.sub("<hostname>", socket.gethostname(), returnval)
-    log.info("using SSID: {}".format(returnval))
+
     return returnval
 
 
-def get_hosts(conf, data):
+def get_hosts(conf: "Config", data: "persist") -> List[str]:
     return [
-        "{}.local".format(expand_ap(conf.ap_name, data)),
+        "{}.local".format(expand_ap(conf.ap_name, data.id)),
     ]
 
 
-def external_callback(state, action):
-    if action != 'start':
+def external_callback(state: str, action: str) -> None:
+    if action != "start":
         return
 
-    script = conf.external_callback
+    script: str = conf.external_callback  # type: ignore
 
     if not os.path.isfile(script):
         return
@@ -160,6 +166,8 @@ def external_callback(state, action):
     if not os.access(script, os.X_OK):
         log.error("Callback script %s is not executable" % script)
         return
+
+    log.debug("Calling External callback")
 
     def demote(uid, gid):
         def dodemote():
@@ -171,7 +179,7 @@ def external_callback(state, action):
 
     stats = os.stat(script)
 
-    with open(os.devnull, 'w') as nul:
+    with open(os.devnull, "w") as nul:
         subprocess.call(
             [script, state],
             stdout=nul,
@@ -180,7 +188,11 @@ def external_callback(state, action):
         )
 
 
-def init_state_mgr(gconf, gdata, callbacks):
+def init_state_mgr(
+    gconf: "Config",
+    gdata: "persist",
+    callbacks: List[Callable[[str, str], None]],
+) -> None:
     global com_obj, conf, data
 
     conf, data = (gconf, gdata)
@@ -188,7 +200,7 @@ def init_state_mgr(gconf, gdata, callbacks):
     states.init_states(
         get_hosts(conf, data),
         callbacks + [external_callback],
-        conf.ap_password
+        conf.ap_password,
     )
     com_obj = Comitup()
 
@@ -198,14 +210,14 @@ def main():
     log.addHandler(handler)
     log.setLevel(logging.DEBUG)
 
-    log.info('starting')
+    log.info("starting")
 
-    init_state_mgr('comitup.local', 'comitup-1111.local')
-    states.set_state('HOTSPOT', timeout=5)
+    init_state_mgr("comitup.local", "comitup-1111.local")
+    states.set_state("HOTSPOT", timeout=5)
 
     loop = MainLoop()
     loop.run()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -1,4 +1,3 @@
-
 # Copyright (c) 2017-2019 David Steele <dsteele@gmail.com>
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
@@ -14,32 +13,32 @@ import logging
 
 from .sysd import sd_start_unit, sd_stop_unit
 
-log = logging.getLogger('comitup')
+log: logging.Logger = logging.getLogger("comitup")
 
-COMITUP_SERVICE = 'comitup-web.service'
+COMITUP_SERVICE: str = "comitup-web.service"
 
-web_service = ""
+web_service: str = ""
 
 
-def start_service(service):
+def start_service(service: str) -> None:
     log.debug("starting %s web service", service)
-    sd_start_unit(service, 'replace')
+    sd_start_unit(service, "replace")
 
 
-def stop_service(service):
+def stop_service(service: str) -> None:
     log.debug("stopping %s web service", service)
-    sd_stop_unit(service, 'replace')
+    sd_stop_unit(service, "replace")
 
 
 callmatrix = {
-    ('HOTSPOT',    'start'): (lambda: stop_service, lambda: web_service),
-    ('HOTSPOT',     'pass'): (lambda: start_service, lambda: COMITUP_SERVICE),
-    ('CONNECTING', 'start'): (lambda: stop_service, lambda: COMITUP_SERVICE),
-    ('CONNECTED',  'start'): (lambda: start_service, lambda: web_service),
+    ("HOTSPOT", "start"): (lambda: stop_service, lambda: web_service),
+    ("HOTSPOT", "pass"): (lambda: start_service, lambda: COMITUP_SERVICE),
+    ("CONNECTING", "start"): (lambda: stop_service, lambda: COMITUP_SERVICE),
+    ("CONNECTED", "start"): (lambda: start_service, lambda: web_service),
 }
 
 
-def state_callback(state, action):
+def state_callback(state: str, action: str) -> None:
     try:
         (fn_fact, svc_fact) = callmatrix[(state, action)]
     except KeyError:
@@ -49,11 +48,7 @@ def state_callback(state, action):
         fn_fact()(svc_fact())
 
 
-def callback_target():
-    return state_callback
-
-
-def init_webmgr(web_svc):
+def init_webmgr(web_svc: str) -> None:
     global web_service
 
     stop_service(COMITUP_SERVICE)

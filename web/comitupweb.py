@@ -11,16 +11,25 @@
 # or later
 #
 
+import json
 import logging
 import sys
 import time
 import urllib
 from logging.handlers import TimedRotatingFileHandler
 from multiprocessing import Process
+from pathlib import Path
 
-from flask import (Flask, abort, jsonify, redirect, render_template, request,
-                   send_from_directory)
-from cachetools import cached, TTLCache
+from cachetools import TTLCache, cached
+from flask import (
+    Flask,
+    abort,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+)
 
 sys.path.append(".")
 sys.path.append("..")
@@ -30,8 +39,15 @@ from comitup import client as ciu  # noqa
 ciu_client = None
 LOG_PATH = "/var/log/comitup-web.log"
 TEMPLATE_PATH = "/usr/share/comitup/web/templates"
+SERVER_PORT = 80
+DEBUG = False
 
-ttl_cache = TTLCache(maxsize=10, ttl=5)
+# LOG_PATH = "/tmp/comitup-web.log"
+# TEMPLATE_PATH = "./templates"
+# SERVER_PORT = 8000
+# DEBUG=True
+
+ttl_cache: TTLCache = TTLCache(maxsize=10, ttl=5)
 
 
 def deflog():
@@ -40,8 +56,7 @@ def deflog():
     handler = TimedRotatingFileHandler(
         LOG_PATH,
         encoding="utf=8",
-        when="D",
-        interval=7,
+        when="W0",
         backupCount=8,
     )
     fmtr = logging.Formatter(
@@ -79,8 +94,16 @@ def create_app(log):
         for point in points:
             point["ssid_encoded"] = urllib.parse.quote(point["ssid"])
         log.info("index.html - {} points".format(len(points)))
+
+        with open(str(Path(TEMPLATE_PATH) / "countries.json"), "r") as fp:
+            countries = json.load(fp)
+
         return render_template(
-            "index.html", points=points, can_blink=ciu.can_blink()
+            "index.html",
+            points=points,
+            can_blink=ciu.can_blink(),
+            default_country="",
+            countries=countries,
         )
 
     @app.route("/confirm")
@@ -121,6 +144,7 @@ def create_app(log):
 
     @app.route("/blink")
     def blink():
+        log.info("blinking")
         ciu.blink()
 
         resp = jsonify(success=True)
@@ -145,10 +169,12 @@ def create_app(log):
 
     @app.route("/<path:path>")
     def catch_all(path):
+        log.info("Redirecting {0}".format(path))
         return redirect("http://10.41.0.1/", code=302)
 
     @app.errorhandler(500)
     def internal_error(error):
+        log.error("Internal Error detected")
         sys.exit(1)
 
     return app
@@ -165,7 +191,7 @@ def main():
     ciu_client.ciu_points()
 
     app = create_app(log)
-    app.run(host="0.0.0.0", port=80, debug=False, threaded=True)
+    app.run(host="0.0.0.0", port=SERVER_PORT, debug=DEBUG, threaded=True)
 
 
 if __name__ == "__main__":

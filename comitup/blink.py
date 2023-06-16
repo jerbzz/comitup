@@ -1,3 +1,9 @@
+# Copyright (c) 2022 David Steele <dsteele@gmail.com>
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+# License-Filename: LICENSE
+#
+
 """
 blink.py
 
@@ -10,63 +16,63 @@ import re
 import time
 from pathlib import Path
 
-brightPath = Path("/sys/class/leds/led0/brightness")
-triggerPath = Path("/sys/class/leds/led0/trigger")
-modelPath = Path("/sys/firmware/devicetree/base/model")
+brightPath: Path = Path("/sys/class/leds/led0/brightness")
+triggerPath: Path = Path("/sys/class/leds/led0/trigger")
+modelPath: Path = Path("/sys/firmware/devicetree/base/model")
 
 
-def onval():
-    """A "1" turns on the led, except on a Zero."""
-    val = "1"
-    if can_blink():
-        if "Zero" in modelPath.read_text():
-            val = "0"
-
-    return val
+def onval() -> str:
+    """A "1" turns on the led."""
+    return "1"
 
 
-def offval():
+def offval() -> str:
     """Value to turn the led off."""
     return "0" if onval() == "1" else "1"
 
 
-def can_blink():
-    """ Is this a Pi with a blinkable green led?"""
+def can_blink() -> bool:
+    """Is this a Pi with a blinkable green led?"""
     if brightPath.exists() and triggerPath.exists():
         return True
 
     return False
 
 
-def get_trigger():
+def get_trigger() -> str:
     """Save the current led trigger, for later restoration."""
-    text = triggerPath.read_text()
+    text: str = triggerPath.read_text()
 
-    try:
-        mode = re.search(r"\[(.+)\]", text).group(1)
-    except Exception:
+    match = re.search(r"\[(.+)\]", text)
+
+    mode: str
+    if match:
+        mode = match.group(1)
+    else:
         mode = "none"
 
     return mode
 
 
-def set_trigger(trigger):
+def set_trigger(trigger: str) -> None:
     """Set the green led trigger."""
     triggerPath.write_text(trigger)
 
 
-def blink():
+def blink(times: int = 1) -> None:
     """Blink the green led once."""
     if can_blink():
         oldtrig = get_trigger()
 
         set_trigger("gpio")
         brightPath.write_text(offval())
-        time.sleep(0.25)
-        brightPath.write_text(onval())
-        time.sleep(0.5)
-        brightPath.write_text(offval())
-        time.sleep(0.25)
+
+        for _ in range(times):
+            time.sleep(0.25)
+            brightPath.write_text(onval())
+            time.sleep(0.5)
+            brightPath.write_text(offval())
+            time.sleep(0.25)
 
         set_trigger(oldtrig)
 
@@ -74,4 +80,4 @@ def blink():
 if __name__ == "__main__":
     print(can_blink())
     print(get_trigger())
-    blink()
+    blink(3)

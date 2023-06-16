@@ -1,5 +1,4 @@
-
-# Copyright (c) 2017-2019 David Steele <dsteele@gmail.com>
+# Copyright (c) 2017-2021 David Steele <dsteele@gmail.com>
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 # License-Filename: LICENSE
@@ -12,44 +11,48 @@
 
 import configparser
 import io
-import logging
 import os
 import random
-import re
 import shutil
-import subprocess
+from typing import Optional, Tuple
 
 from comitup import persist
 
-log = logging.getLogger('comitup')
+PERSIST_PATH: str = "/var/lib/comitup/comitup.json"
+CONF_PATH: str = "/etc/comitup.conf"
+BOOT_CONF_PATH: str = "/boot/comitup.conf"
+SECTION: str = "DEFAULT"
 
-PERSIST_PATH = "/var/lib/comitup/comitup.json"
-CONF_PATH = "/etc/comitup.conf"
-BOOT_CONF_PATH = "/boot/comitup.conf"
-DEFAULT_AP = "comitup-<nnn>"
+data_cache: Optional[Tuple["Config", persist.persist]] = None
 
-# ap_name regex patterns
-REGEX_APNAME_ID = r'<(?<=\<)([n]{1,4}|[M]{1,12}|[s]{1,16})(?=\>)>'
-# matches '<#...>' where # is M... MAC address, 1-12 characters
-#                             s... RPi serial number, 1-16 characters
-#                             n... randomly generated number
-# ID spec may appear anywhere in the apname, with/without a '-' separator
-# Valid match examples: <nn>-myname, p1125-<nnn>, <ss>-<hostname>,
-#                       <hostname>-<MMMM>, first<MMM>second
+
+class MyConfigParser(configparser.ConfigParser):
+    def getboolean(self, *args, **kwargs):
+        mappings = {"y": True, "n": False}
+
+        try:
+            val = mappings[self.get(*args, **kwargs).lower()]
+        except KeyError:
+            val = super().getboolean(*args, **kwargs)
+
+        return val
 
 
 class Config(object):
-    def __init__(self, filename, section='DEFAULT', defaults={}):
-        self._section = section
+    def __init__(self, filename: str, section: str = SECTION, defaults={}):
+        self._section: str = section
 
-        self._config = configparser.ConfigParser(defaults=defaults)
+        self._config = MyConfigParser(defaults=defaults)
         try:
-            with open(filename, 'r') as fp:
-                conf_str = '[%s]\n' % self._section + fp.read()
+            with open(filename, "r") as fp:
+                conf_str = "[%s]\n" % self._section + fp.read()
             conf_fp = io.StringIO(conf_str)
             self._config.read_file(conf_fp)
         except FileNotFoundError:
             pass
+
+    def getboolean(self, tag: str) -> bool:
+        return self._config.getboolean(SECTION, tag)
 
     def __getattr__(self, tag):
         try:
@@ -58,75 +61,39 @@ class Config(object):
             raise AttributeError
 
 
-def _getserial():
-    # Extract serial from cpuinfo file
-    cpuserial = "0000000000000000"
-    try:
-        with open('/proc/cpuinfo', 'r') as f:
-            for line in f:
-                if line.startswith('Serial'):  # Serial		: 10000000082acda8
-                    cpuserial = line.split(':')[-1].strip()
-                    break
+def load_data() -> Tuple[Config, persist.persist]:
+    global data_cache
 
-    except Exception as e:
-        log.error("Failed to parse /proc/cpuinfo for serial number")
-        log.error(e)
-        cpuserial = "ERROR000000000"
+    if not data_cache:
+        if os.path.isfile(BOOT_CONF_PATH):
+            try:
+                dest = shutil.copyfile(BOOT_CONF_PATH, CONF_PATH)
+                print("Boot config file copied:", dest)
+                os.remove(BOOT_CONF_PATH)
+            except Exception:
+                print("Error occurred while copying file.")
 
-    return cpuserial
+        conf = Config(
+            CONF_PATH,
+            defaults={
+                "ap_name": "comitup-<nnn>",
+                "ap_password": "",
+                "web_service": "",
+                "service_name": "comitup",
+                "external_callback": "/usr/local/bin/comitup-callback",
+                "verbose": "0",
+                "enable_appliance_mode": "1",
+                "primary_wifi_device": "",
+                "enable_nuke": "0",
+                "ipv6_link_local": 1,
+            },
+        )
 
+        data = persist.persist(
+            PERSIST_PATH,
+            {"id": str(random.randrange(1000, 9999))},
+        )
 
-def _get_mac():
-    mac = "000000000000"
-    cmd = "nmcli -f GENERAL.HWADDR device show wlan0".split(' ')
-    try:
-        mac_info = subprocess.check_output(cmd).decode("utf-8")
-        # from: GENERAL.HWADDR:                         DC:A6:32:2B:6D:37
-        # to  : DCA6322B6D37
-        mac = mac_info.replace('GENERAL.HWADDR:', '').replace(':', '').strip()
+        data_cache = (conf, data)
 
-    except Exception as e:
-        log.error(e)
-
-    return mac
-
-
-def load_data():
-    if os.path.isfile(BOOT_CONF_PATH):
-        try:
-            dest = shutil.copyfile(BOOT_CONF_PATH, CONF_PATH)
-            print("Boot config file copied:", dest)
-            log.info("Boot config file copied: {}".format(dest))
-            os.remove(BOOT_CONF_PATH)
-        except Exception:
-            print("Error occurred while copying file.")
-            log.error("Error occurred while copying file.")
-
-    conf = Config(
-                CONF_PATH,
-                defaults={
-                    'ap_name': DEFAULT_AP,
-                    'ap_password': '',
-                    'web_service': '',
-                    'service_name': 'comitup',
-                    'external_callback': '/usr/local/bin/comitup-callback',
-                },
-             )
-
-    data = persist.persist(
-                PERSIST_PATH,
-                {'id': str(random.randrange(1000, 9999))},
-           )
-
-    spec = re.search(REGEX_APNAME_ID, conf.ap_name)
-    if spec is not None:
-        # if spec is '<nnn...' data already includes 'id' random number
-        # get MAC or SerialNumber if required
-        if spec.group().startswith('<M'):
-            data['mac'] = _get_mac()
-
-        if spec.group().startswith('<s'):
-            data['sn']: _getserial()
-
-    log.debug(data)
-    return (conf, data)
+    return data_cache
