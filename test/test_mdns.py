@@ -1,12 +1,13 @@
-import pytest
-from mock import Mock, patch
-
-from comitup import mdns
-
 # Copyright (c) 2017-2019 David Steele <dsteele@gmail.com>
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 # License-Filename: LICENSE
+
+from unittest.mock import Mock, patch
+
+import pytest
+
+from comitup import mdns
 
 
 @pytest.fixture()
@@ -37,13 +38,13 @@ def test_avahi_establish_group(avahi_fxt):
 
 
 def test_avahi_make_a_record(avahi_fxt):
-    mdns.make_a_record("host", "1", "1.2.3.4")
-    assert mdns.group.AddRecord.called
+    mdns.make_a_record("host", 1, "1.2.3.4")
+    assert mdns.group.AddRecord.called  # type: ignore
 
 
 def test_avahi_add_service(avahi_fxt):
-    mdns.add_service("host", "1", "1.2.3.4", "::1")
-    assert mdns.group.AddService.called
+    mdns.add_service("host", 1, "1.2.3.4", "::1")
+    assert mdns.group.AddService.called  # type: ignore
 
 
 @patch("comitup.mdns.establish_group", Mock())
@@ -58,7 +59,7 @@ def test_avahi_clear_entries(avahi_fxt):
 
     assert isempty.called
     assert oldgroup.Reset.called
-    assert not mdns.log.called
+    assert not mdns.log.called  # type: ignore
 
 
 @pytest.mark.parametrize(

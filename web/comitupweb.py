@@ -11,14 +11,12 @@
 # or later
 #
 
-import json
 import logging
 import sys
 import time
 import urllib
 from logging.handlers import TimedRotatingFileHandler
 from multiprocessing import Process
-from pathlib import Path
 
 from cachetools import TTLCache, cached
 from flask import (
@@ -36,16 +34,9 @@ sys.path.append("..")
 
 from comitup import client as ciu  # noqa
 
-ciu_client = None
+ciu_client = None  # type: ignore
 LOG_PATH = "/var/log/comitup-web.log"
 TEMPLATE_PATH = "/usr/share/comitup/web/templates"
-SERVER_PORT = 80
-DEBUG = False
-
-# LOG_PATH = "/tmp/comitup-web.log"
-# TEMPLATE_PATH = "./templates"
-# SERVER_PORT = 8000
-# DEBUG=True
 
 ttl_cache: TTLCache = TTLCache(maxsize=10, ttl=5)
 
@@ -71,13 +62,13 @@ def deflog():
 def do_connect(ssid, password, log):
     time.sleep(1)
     log.debug("Calling client connect")
-    ciu_client.service = None
-    ciu_client.ciu_connect(ssid, password)
+    ciu_client.service = None  # type: ignore
+    ciu_client.ciu_connect(ssid, password)  # type: ignore
 
 
 @cached(cache=ttl_cache)
 def cached_points():
-    return ciu_client.ciu_points()
+    return ciu_client.ciu_points()  # type: ignore
 
 
 def create_app(log):
@@ -92,27 +83,21 @@ def create_app(log):
     def index():
         points = cached_points()
         for point in points:
-            point["ssid_encoded"] = urllib.parse.quote(point["ssid"])
+            point["ssid_encoded"] = urllib.parse.quote(  # type: ignore
+                point["ssid"]
+            )
         log.info("index.html - {} points".format(len(points)))
-
-        with open(str(Path(TEMPLATE_PATH) / "countries.json"), "r") as fp:
-            countries = json.load(fp)
-
         return render_template(
-            "index.html",
-            points=points,
-            can_blink=ciu.can_blink(),
-            default_country="",
-            countries=countries,
+            "index.html", points=points, can_blink=ciu.can_blink()
         )
 
     @app.route("/confirm")
     def confirm():
         ssid = request.args.get("ssid", "")
-        ssid_encoded = urllib.parse.quote(ssid.encode())
+        ssid_encoded = urllib.parse.quote(ssid.encode())  # type: ignore
         encrypted = request.args.get("encrypted", "unencrypted")
 
-        mode = ciu_client.ciu_info()["imode"]
+        mode = ciu_client.ciu_info()["imode"]  # type: ignore
 
         log.info("confirm.html - ssid {0}, mode {1}".format(ssid, mode))
 
@@ -127,7 +112,7 @@ def create_app(log):
 
     @app.route("/connect", methods=["POST"])
     def connect():
-        ssid = urllib.parse.unquote(request.form["ssid"])
+        ssid = urllib.parse.unquote(request.form["ssid"])  # type: ignore
         password = request.form["password"].encode()
 
         cached_points()
@@ -191,7 +176,7 @@ def main():
     ciu_client.ciu_points()
 
     app = create_app(log)
-    app.run(host="0.0.0.0", port=SERVER_PORT, debug=DEBUG, threaded=True)
+    app.run(host="0.0.0.0", port=80, debug=False, threaded=True)
 
 
 if __name__ == "__main__":

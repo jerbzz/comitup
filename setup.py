@@ -11,12 +11,10 @@
 
 from setuptools import setup
 
-from comitup import __version__
-
 setup(
     name="comitup",
     packages=["comitup", "web", "cli"],
-    version=__version__.__version__,
+    version="1.43",
     description="Remotely manage wifi connections on a headless computer",
     classifiers=[
         "Development Status :: 5 - Production/Stable",
@@ -32,7 +30,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "comitup=comitup.comitup:main",
+            "comitup-cmd=comitup.comitup:main",
             "comitup-cli=cli.comitupcli:main",
             "comitup-web=web.comitupweb:main",
         ],
@@ -44,19 +42,17 @@ setup(
     },
     data_files=[
         ("/etc", ["conf/comitup.conf"]),
-        ("/var/lib/comitup", ["conf/comitup.json"]),
-        ("/etc/dbus-1/system.d", ["conf/comitup-dbus.conf"]),
+        ("/usr/share/dbus-1/system.d", ["conf/comitup-dbus.conf"]),
         (
-            "/usr/share/comitup/web/templates",
+            "/web/templates",
             [
                 "web/templates/index.html",
                 "web/templates/connect.html",
                 "web/templates/confirm.html",
-                "web/templates/countries.js",
             ],
         ),
         (
-            "/usr/share/comitup/web/templates/css",
+            "/web/templates/css",
             [
                 "web/templates/css/uikit.css",
                 "web/templates/css/uikit-rtl.css",
@@ -65,7 +61,7 @@ setup(
             ],
         ),
         (
-            "/usr/share/comitup/web/templates/js",
+            "/web/templates/js",
             [
                 "web/templates/js/uikit",
                 "web/templates/js/uikit-icons",
@@ -73,14 +69,14 @@ setup(
             ],
         ),
         (
-            "/usr/share/comitup/web/templates/images",
+            "/web/templates/images",
             [
                 "web/templates/images/ledon.gif",
                 "web/templates/images/ledoff.gif",
             ],
         ),
         (
-            "/usr/share/comitup/dns",
+            "/dns",
             [
                 "conf/dns-hotspot.conf",
                 "conf/dns-connected.conf",
@@ -90,14 +86,13 @@ setup(
     install_requires=[
         "cachetools",
         "jinja2",
-        "dbus-python",
         "pygobject",
         "flask",
         "python-networkmanager",
         "pycairo",
     ],
     setup_requires=["pytest-runner"],
-    tests_require=["pytest", "mock"],
+    tests_require=["pytest"],
     author="David Steele",
     author_email="steele@debian.org",
     url="https://davesteele.github.io/comitup/",

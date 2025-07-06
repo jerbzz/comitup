@@ -17,19 +17,23 @@ log = logging.getLogger("comitup")
 
 
 class DevInfo(object):
-    def __init__(self):
+    def __init__(self, primary_dev: str = ""):
         self.dev_list: List[Tuple[str, str]] = []
         for dev in os.listdir("/sys/class/net"):
             try:
                 path = "/sys/class/net/{}/phy80211/name".format(dev)
                 with open(path, "r") as fp:
                     phy = fp.read().strip()
-                self.dev_list.append((dev, phy))
+
+                if dev == primary_dev:
+                    self.dev_list.insert(0, (dev, phy))
+                else:
+                    self.dev_list.append((dev, phy))
             except (NotADirectoryError, FileNotFoundError):
                 pass
 
     def get_devs(self) -> List[str]:
-        return sorted([x[0] for x in self.dev_list])
+        return [x[0] for x in self.dev_list]
 
     def get_phy(self, dev: str) -> str:
         return [x[1] for x in self.dev_list if x[0] == dev][0]
@@ -47,19 +51,21 @@ def device_present() -> Optional[str]:
 
 
 def device_supports_ap() -> Optional[str]:
-    dev: str = dev_info.get_devs()[0]
-    phy: str = dev_info.get_phy(dev)
+    dev: str
 
-    try:
-        cmd: str = "iw phy {} info".format(phy)
-        deviceinfo: str = subprocess.check_output(cmd.split()).decode()
-    except subprocess.CalledProcessError:
-        return ""
+    for dev in dev_info.get_devs():
+        phy: str = dev_info.get_phy(dev)
 
-    if "* AP\n" not in deviceinfo:
-        return phy
+        try:
+            cmd: str = "iw phy {} info".format(phy)
+            deviceinfo: str = subprocess.check_output(cmd.split()).decode()
+        except subprocess.CalledProcessError:
+            return ""
 
-    return None
+        if "* AP\n" in deviceinfo:
+            return None
+
+    return ""
 
 
 def device_nm_managed() -> Optional[str]:
@@ -124,7 +130,11 @@ testspecs = [
 ]
 
 
-def run_checks(logit=True, printit=True, verbose=True) -> bool:
+def run_checks(logit=True, printit=True, verbose=True, primary_dev="") -> bool:
+    global dev_info
+
+    dev_info = DevInfo(primary_dev)
+
     for testspec in testspecs:
         testresult = testspec.testfn()
         if testresult is not None:

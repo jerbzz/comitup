@@ -12,8 +12,6 @@
 #
 
 import logging
-import os
-import signal
 import socket
 import subprocess
 from typing import Dict, List, Optional
@@ -126,9 +124,11 @@ def add_service(
             string_array_to_txt_array(
                 [
                     "hostname=%s" % host,
-                    "ipaddr=%s" % addr
-                    if (addr and addr != "0.0.0.0")
-                    else "ipaddr=",
+                    (
+                        "ipaddr=%s" % addr
+                        if (addr and addr != "0.0.0.0")
+                        else "ipaddr="
+                    ),
                     "ip6addr=%s" % addr6 if addr6 else "ip6addr=",
                     "comitup-home=https://davesteele.github.io/comitup/",
                 ]
@@ -181,11 +181,11 @@ def add_hosts(hosts: List[str]) -> None:
 
     entries: bool = False
     for device in devices:
-        name = nm.device_name(device)
-        addr = nm.get_active_ip(device)
-        addr6 = nm.get_active_ip6(device)
-        log.debug("add_hosts: {}, {}".format(name, addr))
         try:
+            name = nm.device_name(device)
+            addr = nm.get_active_ip(device)
+            addr6 = nm.get_active_ip6(device)
+            log.debug("add_hosts: {}, {}".format(name, addr))
             if name in nm.get_phys_dev_names() and name in int_mapping:
                 index = int_mapping[name]
 
@@ -224,13 +224,8 @@ def add_hosts(hosts: List[str]) -> None:
                     log.error("Exception encountered adding avahi record")
                     clear_entries(emphatic=True)
                     entries = False
-        except NetworkManager.ObjectVanished as e:
-            log.error(
-                "Unrecoverable NetworkManager Error - exiting - {}".format(
-                    str(e)
-                )
-            )
-            os.kill(os.getpid(), signal.SIGTERM)
+        except NetworkManager.ObjectVanished:
+            pass
 
     if group and entries:
         group.Commit()

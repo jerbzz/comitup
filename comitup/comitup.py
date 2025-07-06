@@ -21,7 +21,7 @@ from gi.repository.GLib import MainLoop  # noqa
 
 from comitup import cdns  # noqa
 from comitup import config  # noqa
-from comitup import iptmgr  # noqa
+from comitup import nftmgr  # noqa
 from comitup import nuke  # noqa
 from comitup import persist  # noqa
 from comitup import statemgr  # noqa
@@ -33,7 +33,7 @@ LOG_PATH: str = "/var/log/comitup.log"
 log: Optional[logging.Logger] = None
 
 
-def deflog(verbose: bool) -> logging.Logger:
+def deflog(verbose: int) -> logging.Logger:
     level = logging.INFO
     if verbose:
         level = logging.DEBUG
@@ -65,7 +65,7 @@ def check_environment(log: logging.Logger) -> None:
                     "networking services",
                 ]:
                     print(msg)
-                    log.warn(msg)
+                    log.warning(msg)
         except Exception:
             pass
 
@@ -131,24 +131,27 @@ def main():
         sys.exit(0)
 
     if args.check:
-        if wificheck.run_checks():
+        if wificheck.run_checks(primary_dev=conf.primary_wifi_device):
             sys.exit(1)
         else:
             sys.exit(0)
     else:
-        wificheck.run_checks(verbose=False)
+        wificheck.run_checks(
+            verbose=False,
+            primary_dev=conf.primary_wifi_device,
+        )
 
     check_environment(log)
 
     webmgr.init_webmgr(conf.web_service)
-    iptmgr.init_iptmgr()
+    nftmgr.init_nftmgr()
 
     statemgr.init_state_mgr(
         conf,
         data,
         [
             webmgr.state_callback,
-            iptmgr.state_callback,
+            nftmgr.state_callback,
             cdns.state_callback,
         ],
     )
@@ -161,6 +164,8 @@ def main():
 
     try:
         loop.run()
+    except KeyboardInterrupt:
+        pass
     except Exception:
         log.error("Terminal exception encountered")
         raise
